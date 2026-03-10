@@ -1,287 +1,283 @@
-#include <TFT_HX8357.h>
-#include <Sodaq_DS3231.h> 
-#include "DHT.h"
-#include "RF24.h"
+  #include <TFT_HX8357.h>
+  #include <Sodaq_DS3231.h> 
+  #include "DHT.h"
+  #include "RF24.h"
 
 
-#define DHTPIN 8
+  #define DHTPIN 8
 
 
-#define DHTTYPE DHT22 
-DHT dht(DHTPIN, DHTTYPE);
+  #define DHTTYPE DHT22 
+  DHT dht(DHTPIN, DHTTYPE);
 
-RF24 myRadio (6, 7);
-byte addresses[][6] = {"0"};
+  RF24 myRadio (6, 7);
+  byte addresses[][6] = {"0"};
 
 
-TFT_HX8357 tft = TFT_HX8357();
+  TFT_HX8357 tft = TFT_HX8357();
 
 
-float remoteHumidity = 0.0; float remoteTemperature = 0.0;
+  float remoteHumidity = 0.0; float remoteTemperature = 0.0;
 
-String dateString; String hours;
-int minuteNow=0;
-int minutePrevious=0;
+  String dateString; String hours;
+  int minuteNow=0;
+  int minutePrevious=0;
 
 
-struct package
- 
-{
-float temperature ; float humidity ;
-};
+  struct package{
+    float temperature ; 
+    float humidity ;
+  };
 
 
-float previousIndoorHumidity = 0; float previousIndoorTemperature = 10;
+  float previousIndoorHumidity = 0; 
+  float previousIndoorTemperature = 10;
 
-float previousRemoteHumidity = 0.1; float previousRemoteTemperature = 0.1;
+  float previousRemoteHumidity = 0.1; 
+  float previousRemoteTemperature = 0.1;
 
-float indoorHumidity = 0; float indoorTemperature = 0;
+  float indoorHumidity = 0; 
+  float indoorTemperature = 0;
 
-typedef struct package Package; Package data;
+  typedef struct package Package; 
+  Package data;
 
-void setup() {
+  unsigned long lastDHTRead = 0;         
+  const unsigned long dhtInterval = 3000; // frecv de afisare a datelor
 
+  void setup() {
+    Serial.begin(9600);
+    tft.init(); tft.setRotation(1);
+    tft.fillScreen(TFT_BLACK); delay(100);
+  
+    rtc.begin();
+    dht.begin(); 
+    delay(2000);
+    //setRTCTime();
+    startWirelessCommunication(); 
+    printUI();
+  }
 
-Serial.begin(9600);
+  void loop() {
+    
+    checkForWirelessData();
+    getAndPrintTime();
+    printIndoorTemperature(); 
+    printIndoorHumidity();
+    printRemoteTemperature(); 
+    printRemoteHumidity();
+    delay(1000);
 
+  }
 
-tft.init(); tft.setRotation(1);
-tft.fillScreen(TFT_BLACK); delay(100);
- 
-rtc.begin();
-dht.begin(); 
-delay(2000);
-//setRTCTime();
 
+  void setRTCTime()
+  {
+  
+    DateTime dt(2025, 5, 20, 18, 41, 30, 2);
+    rtc.setDateTime(dt);
 
-startWirelessCommunication(); printUI();
-}
+  }
 
 
-void loop() {
+  void startWirelessCommunication() 
+  {
+    myRadio.begin(); 
+    myRadio.setChannel(115); 
+    myRadio.setPALevel(RF24_PA_MAX); 
+    myRadio.setDataRate( RF24_250KBPS ) ;
+    myRadio.openReadingPipe(1, addresses[0]); 
+    myRadio.startListening();
+    delay(100);
+  }
 
 
-checkForWirelessData();
+  void checkForWirelessData(){
 
+    if ( myRadio.available())
+      {
+        while (myRadio.available())
+         {
 
-getAndPrintTime();
+            myRadio.read( &data, sizeof(data) ); 
+            previousRemoteTemperature = remoteTemperature; 
+            previousRemoteHumidity = remoteHumidity; 
+            remoteTemperature = data.temperature;
+            remoteHumidity = data.humidity;
+
+          }
 
+            String mesaj = "";
+            mesaj += "Package:\n";
+            mesaj += "Temp ext: " + String(data.temperature) + "\n";
+            mesaj += "Umidit ext: " + String(data.humidity) + "\n";
+            mesaj += "Temp int: " + String(dht.readTemperature()) + "\n";
+            mesaj += "Umidit int: " + String(dht.readHumidity());
+
+            Serial.println(mesaj);
+
+      }
+     
+  }
 
-printIndoorTemperature(); printIndoorHumidity();
 
-printRemoteTemperature(); printRemoteHumidity();
-}
+  void printUI()
+  {
 
+      tft.drawRoundRect(5,5,470,71,5,TFT_WHITE);tft.drawRoundRect(6,6,470,71,5,TFT_WHITE);
+      tft.drawRoundRect(5,90,220,225,5,TFT_WHITE); tft.drawRoundRect(6,91,220,225,5,TFT_WHITE);
+      tft.drawRoundRect(250,90,220,225,5,TFT_WHITE); tft.drawRoundRect(251,91,220,225,5,TFT_WHITE);
 
-void setRTCTime()
-{
- 
-DateTime dt(2024, 11, 29, 22, 26, 30, 5);
-rtc.setDateTime(dt);
-}
+      tft.fillRect(26,90,180,40,TFT_GREEN); tft.fillRect(270,90,180,40,TFT_CYAN);
 
+      tft.setCursor(62,100);  tft.setTextColor(TFT_BLACK); tft.setTextSize(3); tft.print("TRANSM");
+      tft.setCursor(290,100); tft.setTextColor(TFT_BLACK); tft.setTextSize(3); tft.print("INTERIOR");
+      tft.setCursor(162,165); tft.setTextColor(TFT_GREEN); tft.setTextSize(6); tft.print("%");
+      tft.setCursor(412,165); tft.setTextColor(TFT_CYAN);  tft.setTextSize(6); tft.print("%");
+      tft.setCursor(162,230); tft.setTextColor(TFT_GREEN); tft.setTextSize(6); tft.print("C");
+      tft.setCursor(145,230); tft.setTextColor(TFT_GREEN); tft.setTextSize(2); tft.print("o");
+      tft.setCursor(412,230); tft.setTextColor(TFT_CYAN);  tft.setTextSize(6); tft.print("C");
+      tft.setCursor(395,230); tft.setTextColor(TFT_CYAN);  tft.setTextSize(2); tft.print("o");
 
-void startWirelessCommunication()
-{
-myRadio.begin(); myRadio.setChannel(115); myRadio.setPALevel(RF24_PA_MAX); myRadio.setDataRate( RF24_250KBPS ) ; myRadio.openReadingPipe(1, addresses[0]); myRadio.startListening();
-delay(100);
-}
+  }
 
 
-void checkForWirelessData()
-{
-if ( myRadio.available())
-{
-while (myRadio.available())
-{
-myRadio.read( &data, sizeof(data) ); previousRemoteTemperature = remoteTemperature; previousRemoteHumidity = remoteHumidity; remoteTemperature = data.temperature;
- 
-remoteHumidity = data.humidity;
-}
-Serial.print("\nPackage:"); Serial.print("\n"); Serial.println(data.temperature); Serial.println(data.humidity);
-}
-}
+  void getAndPrintTime()
+  {
+      delay(100);
+      DateTime now = rtc.now();
 
+        unsigned long currentMillis = millis();
+        if (currentMillis - lastDHTRead >= dhtInterval) {
+          lastDHTRead = currentMillis;
+           readSensor();
+        }
+      
+        dateString = getDayOfWeek(now.dayOfWeek())+" ";
+        dateString = dateString+String(now.date())+"/"+String(now.month()); 
+        dateString= dateString+"/"+ String(now.year());
+        minutePrevious = minuteNow; 
+        hours = String(now.hour()); 
+        if(now.minute()<10)
+        {
+          hours = hours+":0"+String(now.minute());
+        } else
+          {
+            hours = hours+":"+String(now.minute());
+          }
+        printTime();
+      
+  }
 
-void printUI()
-{
 
+  void printTime()
+  {
+      String dateAndTime = dateString+" "+hours;
 
-tft.drawRoundRect(5,5,470,71,5,TFT_WHITE); tft.drawRoundRect(6,6,470,71,5,TFT_WHITE);
 
-tft.drawRoundRect(5,90,220,225,5,TFT_WHITE); tft.drawRoundRect(6,91,220,225,5,TFT_WHITE);
+      tft.setTextSize(2); char charBuf[25];
+      dateAndTime.toCharArray(charBuf, 25);
 
-tft.drawRoundRect(250,90,220,225,5,TFT_WHITE); tft.drawRoundRect(251,91,220,225,5,TFT_WHITE);
 
-tft.fillRect(26,90,180,40,TFT_GREEN); tft.fillRect(270,90,180,40,TFT_CYAN);
+      tft.setTextColor(TFT_WHITE, TFT_BLACK);
+      
+      tft.drawCentreString(charBuf,240,25,2);
+  }
 
-tft.setCursor(62,100);
- 
-tft.setTextColor(TFT_BLACK); tft.setTextSize(3); tft.print("TRANSM");
 
-tft.setCursor(290,100); tft.setTextColor(TFT_BLACK); tft.setTextSize(3); tft.print("INTERIOR");
+  String getDayOfWeek(int i)
+  {
+  switch(i)
+  {
+  case 1: return "Luni";break; case 2: return "Marti";break; case 3: return "Miercuri";break; case 4: return "Joi";break;
+  case 5: return "Vineri";break; case 6: return "Sambata";break; case 7: return "Duminica";break; default: return "Luni";break;
+  }
+  }
 
-tft.setCursor(162,165); tft.setTextColor(TFT_GREEN); tft.setTextSize(6); tft.print("%");
 
-tft.setCursor(412,165); tft.setTextColor(TFT_CYAN); tft.setTextSize(6); tft.print("%");
+  void readSensor()
+  {
+      previousIndoorTemperature = indoorTemperature; previousIndoorHumidity = indoorHumidity;
 
-tft.setCursor(162,230); tft.setTextColor(TFT_GREEN); tft.setTextSize(6); tft.print("C");
+      indoorHumidity = dht.readHumidity(); 
+      indoorTemperature = dht.readTemperature();
+      
+      
+  }
 
-tft.setCursor(145,230);
- 
-tft.setTextColor(TFT_GREEN); tft.setTextSize(2);
-tft.print("o");
 
+  void printIndoorTemperature()
+  {
+      if(indoorTemperature != previousIndoorTemperature){
 
-tft.setCursor(412,230); tft.setTextColor(TFT_CYAN); tft.setTextSize(6); tft.print("C");
+        String temperature = String(indoorTemperature,1);
+        tft.fillRect(270,232,120,40,TFT_BLACK);
+        tft.setCursor(270,234); tft.setTextColor(TFT_CYAN); tft.setTextSize(5); tft.print(temperature);
+        previousIndoorTemperature = indoorTemperature;
 
-tft.setCursor(395,230); tft.setTextColor(TFT_CYAN); tft.setTextSize(2); tft.print("o");
+      }
 
-}
+  }
 
 
-void getAndPrintTime()
-{
+  void printRemoteHumidity(){
 
+      String humidity;
+      
+      if(remoteHumidity != previousRemoteHumidity){
+        if(remoteHumidity == 0.0 && remoteTemperature == 0.0){
+          humidity = "---";
+        } else {
+            humidity = String(remoteHumidity,1);
+          }
 
-delay(100);
-DateTime now = rtc.now(); minuteNow = now.minute(); if(minuteNow!=minutePrevious)
-{
-readSensor();
- 
-dateString = getDayOfWeek(now.dayOfWeek())+" ";
-dateString = dateString+String(now.date())+"/"+String(now.month()); dateString= dateString+"/"+ String(now.year());
-minutePrevious = minuteNow; hours = String(now.hour()); if(now.minute()<10)
-{
-hours = hours+":0"+String(now.minute());
-}else
-{
-hours = hours+":"+String(now.minute());
-}
-printTime();
-}
-}
+      tft.fillRect(20,167,120,40,TFT_BLACK);
+      tft.setCursor(20,167); tft.setTextColor(TFT_GREEN); tft.setTextSize(5); tft.print(humidity);
+      previousRemoteHumidity = remoteHumidity;
 
+      }
+  }
 
-void printTime()
-{
-String dateAndTime = dateString+" "+hours;
 
+  void printRemoteTemperature(){
+      String temperature;
+      if(remoteTemperature != previousRemoteTemperature)
+      
+      {
+      if(remoteHumidity == 0.0 && remoteTemperature == 0.0)
+      {
+      temperature = "---";
+      }else
+      {
+      temperature = String(remoteTemperature,1);
+      }
 
-tft.setTextSize(2); char charBuf[25];
-dateAndTime.toCharArray(charBuf, 25);
 
+      tft.fillRect(20,232,120,40,TFT_BLACK);
 
-tft.setTextColor(TFT_WHITE, TFT_BLACK);
- 
-tft.drawCentreString(charBuf,240,25,2);
-}
 
+      tft.setCursor(20,234); tft.setTextColor(TFT_GREEN); tft.setTextSize(5); tft.print(temperature);
 
-String getDayOfWeek(int i)
-{
-switch(i)
-{
-case 1: return "Luni";break; case 2: return "Marti";break; case 3: return "Miercuri";break; case 4: return "Joi";break;
-case 5: return "Vineri";break; case 6: return "Sambata";break; case 7: return "Duminica";break; default: return "Luni";break;
-}
-}
+      previousRemoteTemperature = remoteTemperature;
+      }
+  }
 
 
-void readSensor()
-{
-previousIndoorTemperature = indoorTemperature; previousIndoorHumidity = indoorHumidity;
+  void printIndoorHumidity(){
 
-indoorHumidity = dht.readHumidity(); 
-indoorTemperature = dht.readTemperature();
- 
-Serial.println(indoorTemperature); Serial.println(indoorHumidity);
-}
+      if(indoorHumidity != previousIndoorHumidity)
+      {
+      
+      String humidity = String(indoorHumidity,1);
 
 
-void printIndoorTemperature()
-{
-if(indoorTemperature != previousIndoorTemperature)
-{
+      tft.fillRect(270,167,120,40,TFT_BLACK);
 
 
-String temperature = String(indoorTemperature,1);
+      tft.setCursor(270,167); tft.setTextColor(TFT_CYAN); tft.setTextSize(5); tft.print(humidity);
 
+      previousIndoorHumidity = indoorHumidity;
+      }
 
-tft.fillRect(270,232,120,40,TFT_BLACK);
-
-
-tft.setCursor(270,234); tft.setTextColor(TFT_CYAN); tft.setTextSize(5); tft.print(temperature);
-
-previousIndoorTemperature = indoorTemperature;
-}
-}
-
-
-void printRemoteHumidity()
-{
-String humidity;
- 
-if(remoteHumidity != previousRemoteHumidity)
-{
-if(remoteHumidity == 0.0 && remoteTemperature == 0.0)
-{
-humidity = "---";
-}else
-{
-humidity = String(remoteHumidity,1);
-}
-
-
-tft.fillRect(20,167,120,40,TFT_BLACK);
-
-
-tft.setCursor(20,167); tft.setTextColor(TFT_GREEN); tft.setTextSize(5); tft.print(humidity);
-
-previousRemoteHumidity = remoteHumidity;
-}
-}
-
-
-void printRemoteTemperature()
-{
-String temperature;
-if(remoteTemperature != previousRemoteTemperature)
- 
-{
-if(remoteHumidity == 0.0 && remoteTemperature == 0.0)
-{
-temperature = "---";
-}else
-{
-temperature = String(remoteTemperature,1);
-}
-
-
-tft.fillRect(20,232,120,40,TFT_BLACK);
-
-
-tft.setCursor(20,234); tft.setTextColor(TFT_GREEN); tft.setTextSize(5); tft.print(temperature);
-
-previousRemoteTemperature = remoteTemperature;
-}
-}
-
-
-void printIndoorHumidity()
-{
-if(indoorHumidity != previousIndoorHumidity)
-{
- 
-String humidity = String(indoorHumidity,1);
-
-
-tft.fillRect(270,167,120,40,TFT_BLACK);
-
-
-tft.setCursor(270,167); tft.setTextColor(TFT_CYAN); tft.setTextSize(5); tft.print(humidity);
-
-previousIndoorHumidity = indoorHumidity;
-}
-}
+  }
 
