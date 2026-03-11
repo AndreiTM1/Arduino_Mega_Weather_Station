@@ -1,0 +1,3 @@
+The main part of the project uses an Arduino Mega and the following components: a DHT22 temperature and humidity sensor used to acquire the data, a DS3231 real-time clock module which makes the device keep track of the date and time while not plugged in, a nRF24L01 2.4 GHz wireless communication module used to receive data from the other part of the project, a TFT LCD display that displays the data, a breadboard and jumper wires.
+The second part uses an Arduino Nano, one DHT22, one nRF24L01, a breadboard and jumper wires.
+I have coded the modules using C++, and it works like this: the main part gets the temperature from where it is placed and displays it, but also displays the information sent from the second part using the wireless module.
