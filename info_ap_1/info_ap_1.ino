@@ -74,7 +74,7 @@
   void setRTCTime()
   {
   
-    DateTime dt(2025, 5, 20, 18, 41, 30, 2);
+    DateTime dt(2026, 3, 22, 0, 8, 0, 7);
     rtc.setDateTime(dt);
 
   }

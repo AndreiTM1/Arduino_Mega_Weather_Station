@@ -16,8 +16,7 @@
 
   typedef struct package Package; Package data;
 
-  DHT dht(DHTPIN, DHTTYPE);
-
+  DHT dht(DHTPIN, DHTTYPE);m
 
   void setup(){
 
